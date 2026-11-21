@@ -1,69 +1,49 @@
 # تنقية التلاوة | Quran Audio Cleaner
 
-A responsive Arabic, right-to-left audio-cleaning website. Adapted from the supplied visual prototype into a working, dependency-free browser app.
+A responsive, Arabic RTL audio-cleaning website. Adapted from a visual prototype into a working browser application.
 
-## Features
+## What it does
 
-- Local file selection and drag-and-drop. Audio never uploads to an application server.
-- Web Audio decoding, followed by processing in a module Web Worker to keep the interface responsive.
-- Conservative spectral noise reduction estimated from the quietest sampled frames, with overlapping FFT windows.
-- Optional 50/60 Hz hum notches and a configurable high-pass filter.
-- Optional linked-channel peak normalization toward -1 dBFS, capped at +20 dB gain.
-- Original/processed playback, real waveforms, cancellation and PCM 16-bit WAV download.
-- Three presets and adjustable noise strength.
-- Optional IndexedDB archive, limited to five saved recordings on the current browser. Nothing saves permanently until the user clicks Save.
-- Built-in synthetic demo signal. It is not a Quran recording.
-- No account, analytics, runtime libraries, remote fonts or paid API.
+- Processes audio entirely on the visitor's device. No recording upload, accounts, analytics or third-party runtime dependencies.
+- Reduces steady background noise with overlapping FFT windows and a conservative estimate from quiet sampled frames.
+- Offers optional 50/60 Hz hum filters, a configurable high-pass filter and linked-channel peak normalization toward -1 dBFS, capped at +20 dB gain.
+- Plays original and processed audio, draws actual waveforms, supports cancellation, and exports PCM 16-bit WAV.
+- Saves up to five recordings in the current browser only when the visitor explicitly chooses Save. Important recordings should also be downloaded.
+- Includes a synthetic test-tone demo, not a Quran recording.
 
-## Deployment layout
+## Files and local use
 
-The root `index.html` is a self-contained production bundle of the same interface, DSP code and worker, so GitHub Pages needs no external runtime files. The source archive included in this repository contains the editable modules and regression tests described below.
+`index.html` contains the readable interface, CSS, DSP and application source. Its background worker is created from the embedded DSP using a local Blob URL. This self-contained deployment avoids missing runtime assets and needs no build step.
 
-## Run locally
-
-Serve this folder over HTTP rather than opening index.html as a file:
+Serve the repository locally:
 
 ```sh
 python3 -m http.server 8080
 ```
 
-Open the address printed by the server in a modern browser. GitHub Pages serves the same static files, with no build step.
+Open the local address printed by the server in a modern browser. GitHub Pages serves the same file directly from the main branch/root.
 
-## Deploy on GitHub Pages
+## Regression tests
 
-Upload `index.html`, `style.css`, `app.js`, `dsp.js`, `worker.js` and `icon.svg` to the same directory on the repository's main branch. In Settings > Pages, select deployment from the main branch and the root folder. No API keys or server are needed.
-
-## Tests
-
-With Node.js installed:
+With Node.js installed, from the repository directory:
 
 ```sh
-npm test
+node dsp.test.mjs
 ```
 
-The dependency-free DSP tests cover FFT round-trip accuracy, bypass, hum rejection, synthetic background reduction, preservation of a test tone, silence, very short inputs, linked stereo normalization and WAV headers/length. They do not establish perceptual quality on human speech or recitation.
+The test extracts the actual DSP source embedded in index.html, then checks FFT round-trip, bypass, hum rejection, synthetic noise reduction, test-tone preservation, silence, short inputs, linked stereo normalization and valid WAV headers/length. It needs no npm packages.
 
-UI checks were also run in Chromium at desktop and mobile sizes for decoding, worker processing, valid WAV export, archive save/reload, bad-file errors, recovery and horizontal overflow.
+Chromium checks were also run against the deployed HTTPS website at desktop and mobile sizes: demo decoding, background worker processing, five-second WAV export with expected size, saved-archive persistence after reload, invalid-file errors and recovery, guide navigation and horizontal overflow. No browser JavaScript errors were observed.
 
-## Limits and honest expectations
+These are functional and synthetic-signal checks, not a perceptual quality benchmark for speech or recitation.
 
-- This is conventional digital signal processing, not an AI speech-separation model. It reduces steady background noise, low rumble and electrical hum. It does not remove room echo, music, other speakers or arbitrary sounds reliably.
-- Strong settings may introduce artifacts or affect speech. Always compare with the original and keep an original copy.
-- Input is limited to 80 MiB, eight minutes and one or two channels, with an additional 128 MiB decoded-audio guard. Lower-powered devices may need much shorter clips. Decoding itself depends on the browser and available device memory.
-- Decoding requests 32 kHz. WAV output uses the actual decoded sample rate, with preserved channel count and duration. WAV can be larger than a compressed source.
-- Codec support depends on the browser. WAV and MP3 are recommended fallbacks when another format fails.
-- There is no loudness (LUFS) normalization, content recognition, verse editing or automatic deletion of silence.
-- Saved recordings live only in this browser's storage, which can be cleared or evicted. Download important files.
-- Opening the website contacts the website host to load static assets. The app itself makes no audio-upload requests.
+## Limits
 
-## Files
+- Conventional digital signal processing, not AI speech separation. It does not reliably remove room echo, music or other speakers. Strong settings can affect speech or introduce artifacts. Keep the original and compare before saving.
+- Inputs are limited to 80 MiB, eight minutes and one or two channels, plus a 128 MiB decoded-audio guard. Lower-powered devices may need much shorter clips. Decoding depends on browser codec support and device memory.
+- The decoder requests 32 kHz. Output uses the actual decoded sample rate and preserves duration and channel count. WAV may be larger than MP3 input.
+- There is no LUFS normalization, verse recognition, content editing or automatic silence removal.
+- Browser storage can be cleared or evicted. Saved recordings are not a cloud backup.
+- Loading the website contacts GitHub Pages for static content. The app makes no audio-upload requests.
 
-- `index.html`: Arabic interface and guide
-- `style.css`: responsive presentation
-- `app.js`: file handling, UI, worker orchestration and device archive
-- `dsp.js`: filters, spectral processing, normalization and WAV encoding
-- `worker.js`: background processing
-- `icon.svg`: local vector icon
-- `dsp.test.js`: DSP regression checks
-
-No private credentials or source audio are required or included.
+No credentials or private audio recordings are included.
