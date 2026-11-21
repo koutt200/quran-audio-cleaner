@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+const dsp = html.split('<script type="module">')[1].split('const workerUrl=')[0];
+const { fft, cleanChannel, normalizeChannels, encodeWav } = await import('data:text/javascript;base64,' + Buffer.from(dsp + '\nexport { fft, cleanChannel, normalizeChannels, encodeWav };').toString('base64'));
+const rate = 32000;
+const rms = data => Math.sqrt(data.reduce((sum, x) => sum + x * x, 0) / data.length);
+const re = Float64Array.from({ length: 2048 }, (_, i) => Math.sin(i * .17)), original = re.slice(), im = new Float64Array(2048);
+fft(re, im); fft(re, im, true); assert.ok(Math.max(...re.map((x, i) => Math.abs(x - original[i]))) < 1e-10);
+const dry = Float32Array.from({ length: rate }, (_, i) => .3 * Math.sin(2 * Math.PI * 440 * i / rate));
+const bypass = cleanChannel(dry, rate, { strength: 0, hum: 0, highpass: 0 }); assert.deepEqual(bypass, dry);
+const tone = Float32Array.from({ length: rate * 3 }, (_, i) => .2 * Math.sin(2 * Math.PI * 50 * i / rate));
+const noHum = cleanChannel(tone, rate, { strength: 0, hum: 50, highpass: 0 }); assert.ok(rms(noHum.slice(rate)) / rms(tone.slice(rate)) < .02);
+const noise = new Float32Array(rate * 4); let seed = 7;
+for (let i = 0; i < noise.length; i++) { seed = (seed * 16807) % 2147483647; noise[i] = .03 * (seed / 2147483647 * 2 - 1) + (i > rate && i < rate * 3 ? .2 * Math.sin(2 * Math.PI * 440 * i / rate) : 0); }
+const clean = cleanChannel(noise, rate, { strength: 45, hum: 50, highpass: 80 });
+assert.equal(clean.length, noise.length); assert.ok(clean.every(Number.isFinite));
+const ratio = rms(clean.slice(4000, 28000)) / rms(noise.slice(4000, 28000)); assert.ok(ratio < .85, `Noise ratio ${ratio}`);
+const toneRatio = rms(clean.slice(40000, 80000)) / rms(noise.slice(40000, 80000)); assert.ok(toneRatio > .90, `Tone ratio ${toneRatio}`);
+const silent = cleanChannel(new Float32Array(4000), rate, { strength: 90, hum: 50, highpass: 80 }); assert.ok(silent.every(x => x === 0));
+const short = cleanChannel(new Float32Array([.1, -.1, .05]), rate, { strength: 45, hum: 0, highpass: 0 }); assert.ok(short.every(Number.isFinite));
+const stereo = [Float32Array.from([2, -2, .2]), Float32Array.from([.2, -.2, .1])]; normalizeChannels(stereo, true); assert.ok(Math.abs(stereo[0][0] - 10 ** (-1 / 20)) < 1e-6); assert.ok(Math.abs(stereo[1][0] / stereo[0][0] - .1) < 1e-6);
+const wav = encodeWav([dry, dry], rate), header = new DataView(wav); assert.equal(header.getUint16(22, true), 2); assert.equal(header.getUint32(24, true), rate); assert.equal(wav.byteLength, 44 + dry.length * 4);
+console.log(JSON.stringify({ passed: 10, backgroundReductionDb: Number((-20 * Math.log10(ratio)).toFixed(2)), testToneRetentionPercent: Number((toneRatio * 100).toFixed(2)), note: 'Synthetic signal checks, not a speech-quality benchmark.' }, null, 2));
